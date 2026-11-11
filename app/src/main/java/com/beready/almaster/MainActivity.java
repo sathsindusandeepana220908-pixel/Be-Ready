@@ -105,6 +105,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public void scheduleReminder(long atMillis, String title, String body, int id) {
             try {
+                ctx.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().putString(String.valueOf(id), atMillis + "\n" + title + "\n" + body).apply();
                 Intent i = new Intent(ctx, ReminderReceiver.class);
                 i.putExtra("title", title); i.putExtra("body", body); i.putExtra("id", id);
                 PendingIntent p = PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
@@ -117,6 +118,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface public void openDocument(String uri) {\n            try { Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(uri)); i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); ctx.startActivity(i); } catch (Exception e) { Toast.makeText(ctx, "No app can open this file", Toast.LENGTH_SHORT).show(); }\n        }\n\n        @JavascriptInterface public void cancelReminder(int id) {
+            ctx.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().remove(String.valueOf(id)).apply();
             Intent i = new Intent(ctx, ReminderReceiver.class);
             PendingIntent p = PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             AlarmManager a = (AlarmManager)ctx.getSystemService(ALARM_SERVICE);

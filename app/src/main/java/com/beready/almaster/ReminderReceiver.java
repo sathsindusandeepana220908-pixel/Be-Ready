@@ -9,6 +9,6 @@ public class ReminderReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         int id = intent.getIntExtra("id", 1001);
-        MainActivity.notifyFromAlarm(context, title == null ? "BeReady reminder" : title, body == null ? "Time to study" : body, id);
+        MainActivity.notifyFromAlarm(context, title == null ? "BeReady reminder" : title, body == null ? "Time to study" : body, id);\n        context.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().remove(String.valueOf(id)).apply();
     }
 }
