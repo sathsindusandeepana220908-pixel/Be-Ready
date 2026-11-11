@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#fffbf6"><title>BeReady — AL Master</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="splash" class="splash"><div class="brand-mark">B<span>↗</span></div><h1>BeReady</h1><p>Your A/L journey, in focus.</p><div class="loader"></div></div>
+<div id="app" class="app hidden">
+<header class="topbar">
+  <div class="avatar">B</div><div class="greeting"><small id="greeting">GOOD EVENING</small><strong id="todayLabel">Your study day</strong></div>
+  <button class="icon-btn" data-action="open-settings" aria-label="Settings">⚙</button>
+</header>
+<main id="screen" class="screen"></main>
+<nav class="dock">
+ <button data-tab="home" class="nav-item active"><span>⌂</span><small>Home</small></button>
+ <button data-tab="tasks" class="nav-item"><span>☷</span><small>Tasks</small></button>
+ <button data-tab="timer" class="nav-item timer-nav"><span>◷</span><small>Focus</small></button>
+ <button data-tab="library" class="nav-item"><span>▤</span><small>Library</small></button>
+ <button data-tab="more" class="nav-item"><span>•••</span><small>More</small></button>
+</nav>
+</div>
+<div id="modal" class="modal hidden"><div class="modal-backdrop" data-action="close-modal"></div><section class="modal-sheet"><div class="sheet-handle"></div><div id="modalBody"></div></section></div>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+</body></html>
