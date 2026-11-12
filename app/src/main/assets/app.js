@@ -166,3 +166,92 @@ window.onPickedDocument=function(name,uri){let d={id:id(),name:name,uri:uri,kind
 window.addEventListener('focus',()=>{if(data.timer.status==='running'&&currentRemaining()<=0)finishTimer(true);else if(tab==='timer')render()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&data.timer.status==='running'&&currentRemaining()<=0)finishTimer(true)});
 setTimeout(()=>{document.getElementById('splash').classList.add('hidden');document.getElementById('app').classList.remove('hidden');render();if(data.timer.status==='running'&&currentRemaining()<=0)finishTimer(true)},550);
+
+
+/* BeReady reliability and study-workflow enhancements */
+data.timer.elapsedMs = Number(data.timer.elapsedMs) || 0;
+data.timer.segmentStartedAt = Number(data.timer.segmentStartedAt) || (data.timer.status === 'running' ? Number(data.timer.startedAt)||0 : 0);
+
+beginTimer = function(){
+ const t=data.timer;
+ if(t.mode==='study'&&!t.subjectId){toast('Choose a subject before starting.');return}
+ if(t.status==='idle'&&t.mode==='study'){t.sessionId=id();t.startedAt=Date.now();t.elapsedMs=0}
+ t.segmentStartedAt=Date.now();t.status='running';t.endAt=Date.now()+Math.max(0,Number(t.remainingMs)||modeDuration(t.mode));
+ save();
+ if(window.BeReady)BeReady.scheduleReminder(t.endAt,'BeReady timer finished',t.mode==='study'?'Your focus session is complete. Take a break!':'Your break is over. Ready to focus?',771);
+ render();
+};
+pauseTimer = function(){
+ const t=data.timer,now=Date.now();
+ if(t.status!=='running')return;
+ t.elapsedMs=(Number(t.elapsedMs)||0)+Math.max(0,now-(Number(t.segmentStartedAt)||now));
+ t.segmentStartedAt=0;t.remainingMs=currentRemaining();t.status='paused';t.endAt=0;
+ if(window.BeReady)BeReady.cancelReminder(771);save();render();
+};
+resetTimer = function(){
+ const t=data.timer;if(window.BeReady)BeReady.cancelReminder(771);
+ t.status='idle';t.endAt=0;t.startedAt=0;t.segmentStartedAt=0;t.elapsedMs=0;t.sessionId='';
+ t.remainingMs=modeDuration(t.mode);save();render();
+};
+finishTimer = function(full){
+ const t=data.timer,now=Date.now();
+ if(t.mode==='study'&&t.sessionId){
+  const active=(t.status==='running'?Math.max(0,now-(Number(t.segmentStartedAt)||now)):0);
+  const elapsed=Math.max(0,(Number(t.elapsedMs)||0)+active);
+  const actual=full?Math.min(modeDuration('study'),elapsed||modeDuration('study')):elapsed;
+  if(actual>=60000&&!data.sessions.some(s=>s.id===t.sessionId)){
+   data.sessions.push({id:t.sessionId,subjectId:t.subjectId,date:dayKey(new Date(t.startedAt||now)),startedAt:t.startedAt||now,endedAt:now,durationMs:actual,type:'pomodoro',description:'Pomodoro focus'});
+  }
+ }
+ if(window.BeReady){BeReady.cancelReminder(771);if(data.settings.vibrate)BeReady.vibrate(250);if(data.settings.sound)playFinishTone();BeReady.notifyNow(full?'Session complete':'Timer stopped',full?'Great work. Your focus time has been saved.':'Your focus time has been saved.');}
+ if(t.mode==='study'){
+  const count=sessionsOn(dayKey(new Date(t.startedAt||now))).filter(s=>s.type==='pomodoro').length;
+  t.mode=(full&&count>0&&count%Math.max(1,data.settings.longAfter)===0)?'long':'short';
+ }else t.mode='study';
+ t.status='idle';t.remainingMs=modeDuration(t.mode);t.endAt=0;t.startedAt=0;t.segmentStartedAt=0;t.elapsedMs=0;t.sessionId='';
+ save();render();toast(full?'Session saved. Well done!':'Elapsed focus time saved.');
+};
+function playFinishTone(){
+ try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const c=new C(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.07;o.start();o.stop(c.currentTime+.22);o.onended=()=>c.close()}catch(e){}
+}
+function sessionForm(s={}){
+ const ms=Number(s.durationMs)||3600000,dt=s.startedAt?new Date(s.startedAt):new Date();
+ openModal('<h2>'+(s.id?'Edit':'Add')+' study time</h2><form id="sessionForm"><input type="hidden" name="id" value="'+esc(s.id||'')+'"><div class="field"><label>SUBJECT</label><select name="subjectId" required>'+subjectOptions(s.subjectId||'')+'</select></div><div class="form-row">'+field('DATE','date',s.date||dayKey(),'date','required')+field('HOURS','hours',String(Math.floor(ms/3600000)),'number','min="0" max="24"')+field('MINUTES','minutes',String(Math.floor(ms/60000)%60),'number','min="0" max="59"')+'</div>'+field('START TIME (OPTIONAL)','startTime',s.startedAt?dt.toTimeString().slice(0,5):'','time')+field('DESCRIPTION (OPTIONAL)','description',s.description||'')+'<div class="modal-actions"><button type="button" class="ghost-btn" data-action="close-modal">Cancel</button><button class="primary-btn">Save time</button></div>'+(s.id?'<button type="button" class="text-btn" data-action="delete-session" data-id="'+esc(s.id)+'">Delete entry</button>':'')+'</form>');
+}
+const beReadyOriginalHandleForm=handleForm;
+handleForm=function(form){
+ if(form.id==='sessionForm'){
+  const fd=new FormData(form),v={};fd.forEach((x,k)=>v[k]=x);
+  const ms=(Number(v.hours)||0)*3600000+(Number(v.minutes)||0)*60000;
+  if(!v.subjectId||ms<=0||ms>24*3600000){toast('Choose a subject and enter 1 minute to 24 hours.');return}
+  const start=v.startTime?new Date(v.date+'T'+v.startTime).getTime():dateFrom(v.date).getTime();
+  const old=data.sessions.find(x=>x.id===v.id);
+  const item={...(old||{}),id:v.id||id(),subjectId:v.subjectId,date:v.date,startedAt:start,endedAt:start+ms,durationMs:ms,type:old?old.type:'manual',description:v.description||'Manual study entry'};
+  const ix=data.sessions.findIndex(x=>x.id===item.id);if(ix>=0)data.sessions[ix]=item;else data.sessions.push(item);
+  save();closeModal();render();toast(old?'Study entry updated':'Study time added');return;
+ }
+ return beReadyOriginalHandleForm(form);
+};
+const beReadyOriginalTaskRow=taskRow;
+taskRow=function(t){
+ return '<div class="task-row"><button class="check '+(t.done?'done':'')+'" data-action="toggle-task" data-id="'+esc(t.id)+'">'+(t.done?'✓':'')+'</button><div class="task-info"><b style="'+(t.done?'text-decoration:line-through;color:#aaa':'')+'">'+esc(t.title)+'</b><small>'+esc(subjectName(t.subjectId))+' · '+esc(t.category||'Other')+' · '+esc(t.date||'')+'</small></div><i class="priority '+String(t.priority||'Medium').toLowerCase()+'"></i><button class="text-btn" data-action="edit-task" data-id="'+esc(t.id)+'">Edit</button><button class="text-btn" data-action="duplicate-task" data-id="'+esc(t.id)+'">＋</button></div>';
+};
+const beReadyOriginalTimerView=timerView;
+timerView=function(){
+ let html=beReadyOriginalTimerView();
+ const history=data.sessions.slice().sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).slice(0,8);
+ const block='<div class="section-head"><h2>Manage study entries</h2><button data-action="quick-session">＋ Add time</button></div><div class="card list-card">'+(history.length?history.map(s=>'<div class="task-row"><div class="task-info"><b>'+esc(subjectName(s.subjectId))+'</b><small>'+esc(fmtDate(s.date))+' · '+esc(s.description||s.type||'Study')+'</small></div><b>'+duration(s.durationMs)+'</b><button class="text-btn" data-action="edit-session" data-id="'+esc(s.id)+'">Edit</button><button class="text-btn" data-action="delete-session" data-id="'+esc(s.id)+'">×</button></div>').join(''):empty('Your study history will appear here.'))+'</div>';
+ return html+block;
+};
+const beReadyOriginalAnalyticsView=analyticsView;
+analyticsView=function(){
+ let html=beReadyOriginalAnalyticsView();
+ const days=lastDays(7),weekly=sumSessions(data.sessions.filter(s=>days.includes(s.date))),goal=Number(data.settings.weeklyTarget)||0,pct=goal?Math.min(100,weekly/(goal*3600000)*100):0;
+ return html+'<div class="section-head"><h2>Weekly target</h2><span class="pill">'+duration(weekly)+' / '+goal+'h</span></div><div class="card"><div class="mini-track" style="height:10px"><i style="width:'+pct+'%;height:10px;background:var(--orange)"></i></div><p class="sub" style="margin-top:9px">'+Math.round(pct)+'% of your weekly goal recorded</p></div>';
+};
+document.addEventListener('click',function(e){
+ const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action,k=el.dataset.id;
+ if(a==='edit-session'){const s=data.sessions.find(x=>x.id===k);if(s)sessionForm(s);return}
+ if(a==='delete-session'){if(!confirm('Delete this study-time entry?'))return;data.sessions=data.sessions.filter(x=>x.id!==k);save();closeModal();render();toast('Study entry deleted');return}
+ if(a==='duplicate-task'){const t=data.tasks.find(x=>x.id===k);if(!t)return;const copy={...t,id:id(),done:false,date:dayKey(),title:t.title+' (copy)'};data.tasks.push(copy);save();render();toast('Task duplicated for today');return}
+});
