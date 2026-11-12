@@ -269,3 +269,38 @@ scheduleEvent = function(e){
   BeReady.scheduleReminder(at,'Upcoming: '+(e.title||'Study session'),subjectName(e.subjectId)+' starts in '+e.reminder+' minutes',alarmId);
 };
 setTimeout(()=>{if(window.BeReady&&Array.isArray(data.events))data.events.forEach(scheduleEvent)},900);
+
+/* A/L past-paper marks tracker and weak-topic review log. */
+data.paperAttempts=data.paperAttempts||[];
+const beReadyMoreView=moreView;
+moreView=function(){
+ return beReadyMoreView()+'<div class="section-head"><h2>Past-paper progress</h2><button data-action="paper-tracker">Open tracker →</button></div><div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><div><b>'+data.paperAttempts.length+' attempts recorded</b><p class="sub">Track marks, timing and topics to revisit.</p></div><button class="primary-btn" data-action="new-paper-attempt">＋ Record</button></div></div>';
+};
+const beReadyRenderSubPage=renderSubPage;
+renderSubPage=function(name){
+ if(name==='paper-tracker'){tab='more';document.getElementById('screen').innerHTML=paperTrackerView();document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));return}
+ beReadyRenderSubPage(name);
+};
+function paperTrackerView(){
+ const list=data.paperAttempts.slice().sort((a,b)=>b.date.localeCompare(a.date));
+ const avg=list.length?Math.round(list.reduce((n,x)=>n+(Number(x.marks)/Math.max(1,Number(x.total)))*100,0)/list.length):0;
+ return pageTitle('Past-paper tracker','Measure exam readiness and identify topics to revisit.','<button class="primary-btn" data-action="new-paper-attempt">＋ Record paper</button>')+
+ '<div class="stats-grid"><div class="stat-card"><strong>'+list.length+'</strong><small>Attempts</small></div><div class="stat-card"><strong>'+avg+'%</strong><small>Average percentage</small></div></div>'+
+ '<div class="card list-card" style="margin-top:14px">'+(list.length?list.map(x=>'<div class="task-row"><div class="task-info"><b>'+esc(subjectName(x.subjectId))+' · '+esc(x.year||'Practice')+'</b><small>'+esc(x.paperType||'Paper')+' · '+esc(x.date)+' · '+esc(x.weakTopics||'No weak topics noted')+'</small></div><b>'+Number(x.marks)+'/'+Number(x.total)+'</b><button class="text-btn" data-action="delete-paper-attempt" data-id="'+esc(x.id)+'">×</button></div>').join(''):empty('Record your first past-paper attempt to see your progress.','✎'))+'</div>';
+}
+function paperAttemptForm(){
+ openModal('<h2>Record paper attempt</h2><form id="paperAttemptForm"><div class="field"><label>SUBJECT</label><select name="subjectId" required>'+subjectOptions()+'</select></div><div class="form-row">'+field('YEAR','year',String(new Date().getFullYear()),'number','min="2000" max="2100"')+field('DATE','date',dayKey(),'date','required')+'</div><div class="field"><label>PAPER TYPE</label><select name="paperType"><option>Past paper</option><option>Model paper</option><option>School term test</option><option>Timed practice</option></select></div><div class="form-row">'+field('MARKS OBTAINED','marks','','number','min="0" required')+field('TOTAL MARKS','total','100','number','min="1" required')+'</div>'+field('WEAK TOPICS TO REVISE','weakTopics','','text')+'<div class="field"><label>REVIEW NOTES</label><textarea name="notes" placeholder="What went well? What should you practise next?"></textarea></div><div class="modal-actions"><button type="button" class="ghost-btn" data-action="close-modal">Cancel</button><button class="primary-btn">Save attempt</button></div></form>');
+}
+document.addEventListener('click',function(e){
+ const el=e.target.closest('[data-action]');if(!el)return;
+ if(el.dataset.action==='paper-tracker'){renderSubPage('paper-tracker');return}
+ if(el.dataset.action==='new-paper-attempt'){paperAttemptForm();return}
+ if(el.dataset.action==='delete-paper-attempt'){data.paperAttempts=data.paperAttempts.filter(x=>x.id!==el.dataset.id);save();renderSubPage('paper-tracker');toast('Attempt deleted');return}
+});
+document.addEventListener('submit',function(e){
+ if(e.target.id!=='paperAttemptForm')return;
+ e.preventDefault();const fd=new FormData(e.target),x={};fd.forEach((v,k)=>x[k]=v);
+ const marks=Number(x.marks),total=Number(x.total);
+ if(!x.subjectId||!Number.isFinite(marks)||!Number.isFinite(total)||total<=0||marks<0||marks>total){toast('Check the subject and marks entered.');return}
+ data.paperAttempts.push({...x,id:id(),marks,total,date:x.date||dayKey()});save();closeModal();renderSubPage('paper-tracker');toast('Paper attempt saved');
+});
