@@ -255,3 +255,17 @@ document.addEventListener('click',function(e){
  if(a==='delete-session'){if(!confirm('Delete this study-time entry?'))return;data.sessions=data.sessions.filter(x=>x.id!==k);save();closeModal();render();toast('Study entry deleted');return}
  if(a==='duplicate-task'){const t=data.tasks.find(x=>x.id===k);if(!t)return;const copy={...t,id:id(),done:false,date:dayKey(),title:t.title+' (copy)'};data.tasks.push(copy);save();render();toast('Task duplicated for today');return}
 });
+
+/* Recurring timetable reminders: one alarm is maintained per weekly event. */
+scheduleEvent = function(e){
+ if(!window.BeReady)return;
+ const alarmId=hashId(e.id);
+ BeReady.cancelReminder(alarmId);
+ if(!e.reminder)return;
+ const at=nextEventDate(e)-Number(e.reminder)*60000;
+ if(at>Date.now()&&typeof BeReady.scheduleWeeklyReminder==='function')
+  BeReady.scheduleWeeklyReminder(at,'Upcoming: '+(e.title||'Study session'),subjectName(e.subjectId)+' starts in '+e.reminder+' minutes',alarmId);
+ else if(at>Date.now())
+  BeReady.scheduleReminder(at,'Upcoming: '+(e.title||'Study session'),subjectName(e.subjectId)+' starts in '+e.reminder+' minutes',alarmId);
+};
+setTimeout(()=>{if(window.BeReady&&Array.isArray(data.events))data.events.forEach(scheduleEvent)},900);
