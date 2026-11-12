@@ -9,7 +9,8 @@ public class ReminderReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         int id = intent.getIntExtra("id", 1001);
+        boolean weekly = intent.getBooleanExtra("weekly", false);
         MainActivity.notifyFromAlarm(context, title == null ? "BeReady reminder" : title, body == null ? "Time to study" : body, id);
-        context.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().remove(String.valueOf(id)).apply();
+        if (!weekly) context.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().remove(String.valueOf(id)).apply();
     }
 }
