@@ -128,6 +128,19 @@ public class MainActivity extends Activity {
             }
         }
 
+        @JavascriptInterface public void scheduleWeeklyReminder(long atMillis, String title, String body, int id) {
+            try {
+                ctx.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().putString(String.valueOf(id), atMillis + "\\n" + title + "\\n" + body + "\\nweekly").apply();
+                Intent i = new Intent(ctx, ReminderReceiver.class);
+                i.putExtra("title", title); i.putExtra("body", body); i.putExtra("id", id); i.putExtra("weekly", true);
+                PendingIntent p = PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                AlarmManager a = (AlarmManager)ctx.getSystemService(ALARM_SERVICE);
+                if (a != null && atMillis > System.currentTimeMillis()) {
+                    a.setInexactRepeating(AlarmManager.RTC_WAKEUP, atMillis, AlarmManager.INTERVAL_DAY * 7L, p);
+                }
+            } catch (Exception e) { Toast.makeText(ctx, "Could not schedule weekly reminder", Toast.LENGTH_SHORT).show(); }
+        }
+
         @JavascriptInterface public void cancelReminder(int id) {
             ctx.getSharedPreferences("beready_alarms", Context.MODE_PRIVATE).edit().remove(String.valueOf(id)).apply();
             Intent i = new Intent(ctx, ReminderReceiver.class);
